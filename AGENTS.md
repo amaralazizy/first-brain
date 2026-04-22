@@ -1,110 +1,109 @@
 # AGENTS.md - First Brain Project
 
-This file provides guidelines for agents working on the First Brain project.
+Guidelines for agents working on the First Brain project.
 
 ## Project Structure
 
 ```
 first-brain/
-├── web/                    # Next.js 16 web application (App Router)
+├── web/                        # TanStack Start web application (Vite)
 │   ├── src/
-│   │   ├── app/           # Next.js pages and API routes
-│   │   ├── trpc/          # tRPC router definitions
-│   │   └── ...
+│   │   ├── app/               # File-based routes (TanStack Router)
+│   │   │   ├── __root.tsx     # Root layout
+│   │   │   ├── index.tsx      # / (Today's Picks)
+│   │   │   └── tasks.tsx      # /tasks
+│   │   ├── server/            # Server functions (createServerFn)
+│   │   │   └── tasks.ts       # All task CRUD + ML recommendation
+│   │   ├── components/ui/     # shadcn/ui components
+│   │   ├── bones/             # Boneyard.js skeleton UI
+│   │   ├── styles/            # globals.css (Tailwind v4)
+│   │   ├── lib/               # Shared utilities (cn)
+│   │   └── providers.tsx      # QueryClientProvider wrapper
+│   ├── vite.config.ts
 │   └── package.json
-├── recommendation-engine/ # Python ML pipeline
-│   ├── ml/                # Source modules (models, features, etc.)
-│   ├── tests/             # Pytest test suite
+├── recommendation-engine/      # Python ML pipeline
+│   ├── ml/                    # Source modules (models, features, etc.)
+│   ├── tests/                 # Pytest test suite
 │   └── requirements.txt
-└── package.json           # Root workspace (pnpm)
+└── packages/
+    ├── db/                    # Drizzle ORM schema + client
+    ├── config/                # Env var validation (Zod)
+    └── validation/            # Shared Zod schemas
 ```
 
 ## Package Manager
 
-**Always use `pnpm` or `pnpm dlx` for all package management. Never use `npx` or `npm`.**
+**Always use `pnpm` or `pnpm dlx`. Never `npx` or `npm`.**
 
-## Build / Lint / Test Commands
+## Commands
 
-### Root (pnpm workspace)
-```bash
-pnpm dev              # Run web dev server
-pnpm build            # Build web production
-pnpm lint             # Lint web
-pnpm typecheck        # TypeScript check web
-```
-
-### Web (Next.js)
+### Web (TanStack Start)
 ```bash
 cd web
-pnpm dev              # Start dev server
-pnpm build            # Production build
-pnpm start            # Start production server
-pnpm lint             # ESLint check
-pnpm dlx tsc --noEmit # TypeScript check (noEmit)
+pnpm dev          # Vite dev server (port 3001)
+pnpm build        # Production build
+pnpm start        # node .output/server/index.mjs
+pnpm typecheck    # tsc --noEmit
+pnpm lint         # ESLint
+```
+
+### Root workspace shortcuts
+```bash
+pnpm --filter web dev
+pnpm --filter web typecheck
 ```
 
 ### Recommendation Engine (Python)
 ```bash
 cd recommendation-engine
-
-# Activate virtual environment
 source .venv/bin/activate
-
-# Run all tests
-pytest
-
-# Run a single test file
-pytest tests/test_pipeline.py
-
-# Run a single test function
-pytest tests/test_pipeline.py::test_build_time_split -v
-
-# Run tests matching a pattern
-pytest -k "test_feature"
+pytest                                          # All tests
+pytest tests/test_pipeline.py                  # Single file
+pytest tests/test_pipeline.py::test_fn -v      # Single test
+pytest -k "test_feature"                       # Pattern match
 ```
 
-## Code Style Guidelines
+## Web Stack
 
-### TypeScript / React / Next.js
+- **Framework**: TanStack Start (Vite, not Next.js)
+- **Routing**: TanStack Router — file-based routes in `src/app/`
+- **Server functions**: `createServerFn` from `@tanstack/react-start` — no tRPC, no HTTP API routes
+- **Data fetching**: `useQuery` / `useMutation` from `@tanstack/react-query` calling server functions directly
+- **Database**: Drizzle ORM + PostgreSQL (Neon)
+- **Styling**: Tailwind CSS v4 + shadcn/ui (Radix Maia theme)
+- **Links**: `<Link to="/path">` from `@tanstack/react-router` — NOT `next/link`
+- **No `'use client'`**: TanStack Start is client-first; directive not needed
 
-- **File naming**: Use kebab-case for files (`trpc-provider.tsx`, `api-route.ts`)
-- **Component naming**: Use PascalCase for components and React files (`TRPCProvider.tsx`)
-- **Directory structure**: Use `src/app/` for App Router pages; `src/trpc/` for tRPC
-- **Path aliases**: Use `@/*` alias (e.g., `@/src/trpc/routers/_app`)
-- **Imports**: Order imports: external libs → internal modules → local components
-- **React Server Components**: Mark client components with `'use client'` directive at top
-- **tRPC**: Define routers in `@/src/trpc/routers/`, init in `@/src/trpc/init.ts`
-- **TypeScript**: Enable strict mode; avoid `any`; use `interface` for objects, `type` for unions
-- **Tailwind CSS**: Use utility classes; follow existing patterns in `globals.css`
-- **Error handling**: Use try/catch with proper error boundaries; log errors appropriately
-- **shadcn/ui**: Components are managed via shadcn; add with `pnpm dlx shadcn@latest add <component>`
+### Auto-generated file
+`src/routeTree.gen.ts` is regenerated by the Vite plugin on every `pnpm dev` / `pnpm build`. The committed placeholder is replaced on first run — do not edit it manually.
 
-### Python / ML Pipeline
+### Adding a new route
+1. Create `src/app/my-route.tsx`
+2. Export `export const Route = createFileRoute('/my-route')({ component: MyPage })`
+3. Run `pnpm dev` — routeTree.gen.ts regenerates automatically
 
-- **File naming**: Use snake_case (`pipeline.py`, `data_simulation.py`)
-- **Type hints**: Use Python 3.10+ syntax (`def foo(x: int) -> str:`)
-- **Docstrings**: Use Google-style docstrings with Args, Returns, Raises sections
-- **Imports**: Order: stdlib → third-party → local (`from ml.models import ...`)
-- **Testing**: Use pytest; place tests in `tests/` directory mirroring source structure
-- **Constants**: UPPER_SNAKE_CASE for true constants; camelCase for configuration objects
-- **Error handling**: Raise specific exceptions; avoid bare `except:`
+### Adding a new server function
+Define in `src/server/` and import directly into the route component:
+```ts
+export const myFn = createServerFn({ method: 'GET' })
+  .inputValidator(mySchema)
+  .handler(async ({ data }) => { /* runs on server */ })
+```
+
+## Code Style
+
+### TypeScript / React
+- Strict mode; avoid `any`
+- `interface` for objects, `type` for unions/aliases
+- Path alias `@/*` maps to `src/`; workspace packages via `@first-brain/*`
+- shadcn components: `pnpm dlx shadcn@latest add <component>`
+
+### Python / ML
+- Snake_case filenames; Google-style docstrings
+- Type hints (Python 3.10+)
+- Tests in `tests/` mirroring source structure
 
 ### General
-
-- **Commits**: Use conventional commit format (`feat:`, `fix:`, `docs:`, etc.)
-- **Pre-commit**: Do not bypass hooks; fix lint errors before committing
-- **PRs**: Keep PRs focused and reasonably sized; include tests for new features
-- **Environment variables**: Read `.env.example` to know variable names; NEVER read `.env` files
-
-## Database
-
-- **ORM**: Uses Drizzle ORM with PostgreSQL
-- **Migrations**: Run via `pnpm dlx drizzle-kit` commands
-- **Schema**: Define in `web/packages/db/schema.ts`
-
-## Additional Notes
-
-- This project uses Next.js 16 with React 19 and the App Router
-- The web app is in `web/` directory at the project root
-- tRPC is used for type-safe API calls between client and server
-- The recommendation engine uses scikit-learn, XGBoost, and SHAP for ML
+- Conventional commits (`feat:`, `fix:`, `docs:`, etc.)
+- Never bypass pre-commit hooks
+- Never read or commit `.env` files

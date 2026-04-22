@@ -1,1 +1,1 @@
-cd web && pnpm lint-staged
+pnpm --filter web typecheck
