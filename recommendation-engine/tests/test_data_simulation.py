@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ml.data_simulation import simulate_dataset, TASK_TYPES, URGENCY_LEVELS
+from data_simulation import simulate_dataset, TASK_TYPES, URGENCY_LEVELS
 
 
 def test_simulate_dataset_returns_dataframe():

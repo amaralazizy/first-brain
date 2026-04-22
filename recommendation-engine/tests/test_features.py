@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ml.data_simulation import simulate_dataset
-from ml.features import FeatureEngineer, TASK_TYPES, URGENCY_LEVELS, _NUMERIC_COLS, _CAT_COLS
+from data_simulation import simulate_dataset
+from features import FeatureEngineer, TASK_TYPES, URGENCY_LEVELS, _NUMERIC_COLS, _CAT_COLS
 
 
 @pytest.fixture

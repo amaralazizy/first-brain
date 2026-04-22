@@ -24,10 +24,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ml.data_simulation import simulate_dataset
-from ml.features import FeatureEngineer
-from ml.models import HeuristicModel, LogisticRegressionModel, XGBoostModel
-from ml.evaluation import evaluate, compare_models
+from data_simulation import simulate_dataset
+from features import FeatureEngineer
+from models import HeuristicModel, LogisticRegressionModel, XGBoostModel
+from evaluation import evaluate, compare_models
 
 
 def build_time_split(

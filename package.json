@@ -1,0 +1,17 @@
+{
+  "name": "first-brain",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "ml": "cd recommendation-engine && .venv/bin/uvicorn api:app --reload --port 8000",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint",
+    "lint:fix": "pnpm --filter web lint:fix",
+    "typecheck": "pnpm --filter web typecheck",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "skills": "^1.4.6"
+  }
+}

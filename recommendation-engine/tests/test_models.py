@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ml.data_simulation import simulate_dataset
-from ml.features import FeatureEngineer
-from ml.models import HeuristicModel, LogisticRegressionModel, XGBoostModel
+from data_simulation import simulate_dataset
+from features import FeatureEngineer
+from models import HeuristicModel, LogisticRegressionModel, XGBoostModel
 
 
 @pytest.fixture

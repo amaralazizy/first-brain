@@ -2,8 +2,8 @@
 
 import pytest
 
-from ml.pipeline import run_pipeline, build_time_split
-from ml.data_simulation import simulate_dataset
+from pipeline import run_pipeline, build_time_split
+from data_simulation import simulate_dataset
 
 
 def test_build_time_split_no_overlap():

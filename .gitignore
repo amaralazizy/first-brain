@@ -22,3 +22,10 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+node_modules
+
+# Environment variables
+*/.env.*
+**/*/.env.*
+
+**/*/.next

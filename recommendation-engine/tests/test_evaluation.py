@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from ml.evaluation import (
+from evaluation import (
     precision_at_k,
     recall_at_k,
     calibration_error,
