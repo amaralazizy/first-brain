@@ -12,7 +12,7 @@ COPY .npmrc pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/ packages/
 COPY web/ web/
 
-RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter web build
 
 EXPOSE 3000

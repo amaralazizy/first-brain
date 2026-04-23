@@ -8,7 +8,7 @@
     "lint": "pnpm --filter web lint",
     "lint:fix": "pnpm --filter web lint:fix",
     "typecheck": "pnpm --filter web typecheck",
-    "prepare": "husky"
+    "prepare": "node -e \"if(process.env.HUSKY!=='0')require('child_process').execSync('husky',{stdio:'inherit'})\""
   },
   "devDependencies": {
     "husky": "^9.1.7",
