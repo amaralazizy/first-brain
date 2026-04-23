@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Skeleton } from 'boneyard-js/react'
 import { listTasks, createTask, completeTask, skipTask, reopenTask } from '../server/tasks'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { ErrorBoundary } from '@/components/ui/error-boundary'
 import {
   Select,
   SelectContent,
@@ -55,19 +56,45 @@ function TasksPage() {
   const create = useMutation({
     mutationFn: (input: Parameters<typeof createTask>[0]['data']) =>
       createTask({ data: input }),
-    onSuccess: () => { invalidate(); setOpen(false); resetForm() },
+    onSuccess: () => {
+      toast.success('Task created!')
+      invalidate()
+      setOpen(false)
+      resetForm()
+    },
+    onError: () => {
+      toast.error('Failed to create task')
+    },
   })
   const complete = useMutation({
     mutationFn: (id: number) => completeTask({ data: { id } }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      toast.success('Task completed!')
+      invalidate()
+    },
+    onError: () => {
+      toast.error('Failed to complete task')
+    },
   })
   const skip = useMutation({
     mutationFn: (id: number) => skipTask({ data: { id } }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      toast('Task skipped')
+      invalidate()
+    },
+    onError: () => {
+      toast.error('Failed to skip task')
+    },
   })
   const reopen = useMutation({
     mutationFn: (id: number) => reopenTask({ data: { id } }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      toast.success('Task reopened')
+      invalidate()
+    },
+    onError: () => {
+      toast.error('Failed to reopen task')
+    },
   })
 
   const [open, setOpen] = useState(false)
@@ -95,14 +122,19 @@ function TasksPage() {
   }
 
   const pending = tasks.filter(t => t.status === 'pending')
-  const done = tasks.filter(t => t.status !== 'pending')
+  const done    = tasks.filter(t => t.status !== 'pending')
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+    <ErrorBoundary>
+      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      {/* ── Header — always visible immediately ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">All Tasks</h1>
-          <p className="text-muted-foreground text-sm mt-1">{pending.length} pending · {done.length} done</p>
+          <h1 className="text-2xl font-bold text-wrap balance">All Tasks</h1>
+          {isLoading
+            ? <div className="h-4 w-36 bg-muted/60 rounded animate-pulse mt-1" />
+            : <p className="text-muted-foreground text-sm mt-1">{pending.length} pending · {done.length} done</p>
+          }
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
@@ -190,34 +222,61 @@ function TasksPage() {
         </div>
       </div>
 
-      <Skeleton name="task-list" loading={isLoading}>
+      {/* Loading skeleton - matches actual task card */}
+      {isLoading && (
         <div className="space-y-2">
-          {pending.map(task => (
-            <Card key={task.id}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
               <CardContent className="py-4 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{task.title}</p>
-                  {task.description && <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>}
+                  <div className="h-5 bg-muted rounded w-3/4 animate-pulse" />
+                  <div className="h-4 bg-muted rounded w-1/2 mt-1 animate-pulse" />
                   <div className="flex flex-wrap gap-1.5 mt-2">
-                    <Badge className={URGENCY_COLOR[task.urgency]}>{task.urgency}</Badge>
-                    <Badge variant="outline">{task.taskType}</Badge>
-                    <Badge variant="outline">{task.estimatedEffort}h</Badge>
-                    {task.hasDeadline && task.deadline && (
-                      <Badge variant="outline">Due {new Date(task.deadline).toLocaleDateString()}</Badge>
-                    )}
+                    <div className="h-5 w-14 bg-muted rounded animate-pulse" />
+                    <div className="h-5 w-16 bg-muted rounded animate-pulse" />
+                    <div className="h-5 w-8 bg-muted rounded animate-pulse" />
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <Button size="sm" variant="outline" onClick={() => skip.mutate(task.id)}>Skip</Button>
-                  <Button size="sm" onClick={() => complete.mutate(task.id)}>Done</Button>
+                  <div className="h-7 w-12 bg-muted rounded animate-pulse" />
+                  <div className="h-7 w-12 bg-muted rounded animate-pulse" />
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
-      </Skeleton>
+      )}
 
-      {done.length > 0 && (
+      {/* Pending tasks */}
+      {!isLoading && pending.length > 0 && (
+        <div className="space-y-2">
+            {pending.map(task => (
+              <Card key={task.id}>
+                <CardContent className="py-4 flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{task.title}</p>
+                    {task.description && <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <Badge className={URGENCY_COLOR[task.urgency]}>{task.urgency}</Badge>
+                      <Badge variant="outline">{task.taskType}</Badge>
+                      <Badge variant="outline">{task.estimatedEffort}h</Badge>
+                      {task.hasDeadline && task.deadline && (
+                        <Badge variant="outline">Due {new Date(task.deadline).toLocaleDateString()}</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => skip.mutate(task.id)}>Skip</Button>
+                    <Button size="sm" onClick={() => complete.mutate(task.id)}>Done</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+      )}
+
+      {/* Completed / Skipped */}
+      {!isLoading && done.length > 0 && (
         <div className="space-y-2">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Completed / Skipped</h2>
           {done.map(task => (
@@ -237,7 +296,8 @@ function TasksPage() {
         </div>
       )}
 
-      {tasks.length === 0 && !isLoading && (
+      {/* Empty state */}
+      {!isLoading && tasks.length === 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-center text-muted-foreground font-normal">No tasks yet</CardTitle>
@@ -249,5 +309,6 @@ function TasksPage() {
         </Card>
       )}
     </div>
+    </ErrorBoundary>
   )
 }

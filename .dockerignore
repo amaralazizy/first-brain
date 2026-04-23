@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+web/.output
+web/dist
+web/.vinxi
+recommendation-engine/.venv
+recommendation-engine/__pycache__
+recommendation-engine/models/*.joblib
+recommendation-engine/models/feedback.jsonl
+.git
+**/.git
+*.md
+docs/

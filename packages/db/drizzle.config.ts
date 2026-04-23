@@ -1,10 +1,13 @@
 import { defineConfig } from 'drizzle-kit';
 import path from 'path';
-import { config } from 'dotenv';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 
-// Load .env.local from the web app (dev) then .env.production as fallback
-config({ path: path.resolve(__dirname, '../../web/.env.local') });
-config({ path: path.resolve(__dirname, '../../web/.env.production'), override: false });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const webDir = path.resolve(__dirname, '../../web');
+
+dotenv.config({ path: path.resolve(webDir, '.env.local') });
+dotenv.config({ path: path.resolve(webDir, '.env.production'), override: false });
 
 export default defineConfig({
   schema: path.resolve(__dirname, './schema.ts'),

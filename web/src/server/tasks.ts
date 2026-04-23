@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { eq, and, ne } from 'drizzle-orm'
+import { eq, and, ne, or, desc } from 'drizzle-orm'
 import { db, tasks } from '@first-brain/db'
 import { createTaskSchema, taskIdSchema } from '@first-brain/validation'
 
@@ -142,11 +142,142 @@ export const recommendTasks = createServerFn({ method: 'GET' })
       throw new Error(`ML service returned ${res.status}: ${body}`)
     }
 
-    const ranked: { id: number; score: number }[] = await res.json()
-    const scoreById = new Map(ranked.map((r) => [r.id, r.score]))
+    interface ScoredTask {
+      id: number
+      score: number
+      explanation: Array<{ feature: string; shap_value: number }>
+    }
+
+    const ranked: ScoredTask[] = await res.json()
+    const byId = new Map(ranked.map((r) => [r.id, r]))
 
     return ranked.map(({ id }) => {
       const task = pending.find((t) => t.id === id)!
-      return { ...task, score: scoreById.get(id) ?? 0 }
+      const ml = byId.get(id)!
+      return { ...task, score: ml.score, explanation: ml.explanation }
     })
   })
+
+export const sendFeedback = createServerFn({ method: 'POST' })
+  .inputValidator((raw: unknown) => {
+    const data = raw as { taskId: number; action: 'complete' | 'skip'; score?: number }
+    return data
+  })
+  .handler(async ({ data }) => {
+    try {
+      await fetch(`${ML_API}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task_id: data.taskId,
+          action: data.action,
+          score: data.score ?? null,
+        }),
+        signal: AbortSignal.timeout(2000),
+      })
+    } catch {
+      // Feedback delivery is best-effort — don't block the UI mutation
+    }
+  })
+
+// ── ML API proxies ────────────────────────────────────────────────────────────
+
+export const getModelHealth = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    try {
+      const res = await fetch(`${ML_API}/health`, { signal: AbortSignal.timeout(3000) })
+      const json = await res.json()
+      return { online: true as const, ...json }
+    } catch {
+      return { online: false as const }
+    }
+  })
+
+export const getModelMetrics = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    try {
+      const res = await fetch(`${ML_API}/metrics`, { signal: AbortSignal.timeout(3000) })
+      if (!res.ok) return null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return res.json() as Promise<any>
+    } catch {
+      return null
+    }
+  })
+
+export const triggerRetrain = createServerFn({ method: 'POST' })
+  .handler(async () => {
+    const res = await fetch(`${ML_API}/train`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (!res.ok) throw new Error(`Training failed: ${res.status}`)
+    return res.json()
+  })
+
+// ── DB analytics ─────────────────────────────────────────────────────────────
+
+export const getAnalytics = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    const all = await db.select().from(tasks)
+    const completed = all.filter((t) => t.status === 'completed')
+    const skipped = all.filter((t) => t.status === 'skipped')
+    const pending = all.filter((t) => t.status === 'pending')
+
+    const total = all.length
+    const completionRate = total > 0 ? completed.length / total : 0
+    const skipRate = total > 0 ? skipped.length / total : 0
+    const avgEffort = total > 0 ? all.reduce((s, t) => s + t.estimatedEffort, 0) / total : 0
+
+    const taskTypes = ['work', 'personal', 'learning', 'health', 'other'] as const
+    const taskTypeBreakdown = taskTypes.map((type) => ({
+      type,
+      total: all.filter((t) => t.taskType === type).length,
+      completed: completed.filter((t) => t.taskType === type).length,
+      skipped: skipped.filter((t) => t.taskType === type).length,
+    }))
+
+    const urgencies = ['Low', 'Medium', 'High', 'Critical'] as const
+    const urgencyBreakdown = urgencies.map((u) => ({
+      urgency: u,
+      count: all.filter((t) => t.urgency === u).length,
+    }))
+
+    const now = Date.now()
+    const cutoff = now - 30 * 86_400_000
+    const timeline: Record<string, number> = {}
+    for (const t of completed) {
+      if (t.completedAt && t.completedAt.getTime() >= cutoff) {
+        const day = t.completedAt.toISOString().slice(0, 10)
+        timeline[day] = (timeline[day] ?? 0) + 1
+      }
+    }
+
+    const mostSkipped = pending
+      .filter((t) => t.skipCount > 0)
+      .sort((a, b) => b.skipCount - a.skipCount)
+      .slice(0, 5)
+
+    return {
+      total,
+      completedCount: completed.length,
+      skippedCount: skipped.length,
+      pendingCount: pending.length,
+      completionRate,
+      skipRate,
+      avgEffort,
+      taskTypeBreakdown,
+      urgencyBreakdown,
+      timeline,
+      mostSkipped,
+    }
+  })
+
+export const listHistory = createServerFn({ method: 'GET' })
+  .handler(() =>
+    db
+      .select()
+      .from(tasks)
+      .where(or(eq(tasks.status, 'completed'), eq(tasks.status, 'skipped')))
+      .orderBy(desc(tasks.updatedAt)),
+  )

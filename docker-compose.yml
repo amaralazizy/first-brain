@@ -1,0 +1,23 @@
+services:
+  ml:
+    build: ./recommendation-engine
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    build: .
+    ports:
+      - "3001:3000"
+    env_file:
+      - web/.env
+    environment:
+      - ML_API_URL=http://ml:8000
+    depends_on:
+      ml:
+        condition: service_healthy

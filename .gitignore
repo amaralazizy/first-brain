@@ -29,3 +29,15 @@ node_modules
 **/*/.env.*
 
 **/*/.next
+
+# ML model artifacts
+recommendation-engine/models/*.joblib
+recommendation-engine/models/feedback.jsonl
+
+# Build output
+web/dist/
+web/.output/
+web/.vinxi/
+
+# Test results
+web/test-results/
