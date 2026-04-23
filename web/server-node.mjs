@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import { createRequire } from 'node:module';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { join, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 
@@ -10,9 +11,46 @@ const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
+const CLIENT_DIR = join(__dirname, 'dist', 'client');
 
-const serverModule = await import(pathToFileURL(path.join(__dirname, 'dist/server/server.js')).href);
+const MIME = {
+  '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
+  '.css': 'text/css',
+  '.html': 'text/html',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+};
+
+const serverModule = await import(pathToFileURL(join(__dirname, 'dist', 'server', 'server.js')).href);
 const handler = serverModule.default;
+
+function tryStatic(req, res) {
+  const urlPath = new URL(req.url, 'http://localhost').pathname;
+  const filePath = join(CLIENT_DIR, urlPath);
+
+  if (!filePath.startsWith(CLIENT_DIR)) return false;
+  if (!existsSync(filePath)) return false;
+
+  const stat = statSync(filePath);
+  if (!stat.isFile()) return false;
+
+  const mime = MIME[extname(filePath)] || 'application/octet-stream';
+  res.writeHead(200, {
+    'Content-Type': mime,
+    'Content-Length': stat.size,
+    'Cache-Control': 'public, max-age=31536000, immutable',
+  });
+  createReadStream(filePath).pipe(res);
+  return true;
+}
 
 function nodeReqToWebRequest(req) {
   const host = req.headers.host || `localhost:${PORT}`;
@@ -35,7 +73,6 @@ function nodeReqToWebRequest(req) {
           method: req.method || 'GET',
           headers,
           body: body?.length ? body : null,
-          // @ts-ignore — duplex required for POST with body in Node 18+
           duplex: 'half',
         })
       );
@@ -59,11 +96,13 @@ async function writeWebResponse(webRes, res) {
 
 const server = createServer(async (req, res) => {
   try {
+    if (tryStatic(req, res)) return;
+
     const webReq = await nodeReqToWebRequest(req);
     const webRes = await handler.fetch(webReq);
     await writeWebResponse(webRes, res);
   } catch (err) {
-    console.error('[server-node] unhandled error:', err);
+    console.error('[server-node] error:', err);
     if (!res.headersSent) {
       res.writeHead(500);
       res.end('Internal Server Error');
@@ -72,5 +111,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[first-brain] web server listening on http://${HOST}:${PORT}`);
+  console.log(`[first-brain] listening on http://${HOST}:${PORT}`);
 });
