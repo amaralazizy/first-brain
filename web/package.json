@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "start": "node server-node.mjs",
+    "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
     "test:run": "vitest run",
     "ml": "cd ../recommendation-engine && .venv/bin/uvicorn api:app --reload --port 8000",
@@ -37,7 +37,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    
     "@tailwindcss/vite": "^4.2.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
@@ -48,6 +47,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.0.2",
+    "nitro": "3.0.260415-beta",
     "tailwindcss": "^4.2.4",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",

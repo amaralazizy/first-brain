@@ -21,4 +21,4 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 
 WORKDIR /app/web
-CMD ["node", "server-node.mjs"]
+CMD ["node", ".output/server/index.mjs"]
