@@ -14,7 +14,7 @@ COPY packages/ packages/
 COPY web/ web/
 
 RUN pnpm install
-RUN pnpm --filter web build
+RUN rm -rf /app/web/dist /app/web/.output && pnpm --filter web build
 
 EXPOSE 3000
 ENV HOST=0.0.0.0
