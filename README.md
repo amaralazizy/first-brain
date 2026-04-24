@@ -1,24 +1,8 @@
-# 🧠 First Brain
-**AI-Powered Task Recommendation System**
+# First Brain — AI-Powered Task Prioritization
 
-> *"What is next?"*
+**Track 2: ProductPrototype** | ECE 57000, Purdue University
 
-First Brain is an ML-powered decision engine that reduces cognitive overload by automatically recommending the most appropriate tasks to work on each day.
-
----
-
-## Checkpoint 1 — ML Pipeline
-
-This checkpoint implements the core machine-learning pipeline with no UI. It covers:
-
-| Component | Description |
-|-----------|-------------|
-| **Data Simulation** | Synthetic task-day dataset that models realistic user behaviour (urgency, deadlines, skips, weekday patterns) |
-| **Feature Engineering** | Time-based, behavioural, metadata, and context features; one-hot encoding for categoricals |
-| **Heuristic Baseline** | Rule-based scorer: `urgency + deadline_proximity + task_age − skip_penalty` |
-| **Logistic Regression** | Linear ML baseline with standard scaling |
-| **XGBoost** | Primary model — gradient-boosted trees with early stopping |
-| **Evaluation** | ROC-AUC, Precision@K, Recall@K, F1, Average Precision, Calibration Error |
+An end-to-end system that uses XGBoost + SHAP to rank a user's pending tasks by predicted completion likelihood and explains each recommendation in plain language.
 
 ---
 
@@ -26,82 +10,161 @@ This checkpoint implements the core machine-learning pipeline with no UI. It cov
 
 ```
 first-brain/
-├── ml/
-│   ├── data_simulation.py   # Synthetic task-day dataset generation
-│   ├── features.py          # Feature engineering (FeatureEngineer)
-│   ├── models.py            # HeuristicModel, LogisticRegressionModel, XGBoostModel
-│   ├── evaluation.py        # precision_at_k, recall_at_k, calibration_error, evaluate()
-│   └── pipeline.py          # End-to-end train/evaluate pipeline (run with python -m ml.pipeline)
-├── tests/
-│   ├── test_data_simulation.py
-│   ├── test_features.py
-│   ├── test_models.py
-│   └── test_evaluation.py
-│   └── test_pipeline.py
-└── requirements.txt
+├── web/                          # TanStack Start web application (React, Vite)
+│   ├── src/
+│   │   ├── app/                  # File-based routes
+│   │   │   ├── __root.tsx        # Root layout + navigation
+│   │   │   ├── index.tsx         # / — Today's Picks (ranked recommendations + SHAP chips)
+│   │   │   ├── tasks.tsx         # /tasks — CRUD interface
+│   │   │   ├── analytics.tsx     # /analytics — productivity stats
+│   │   │   ├── insights.tsx      # /insights — ML model metrics + feature importance
+│   │   │   └── history.tsx       # /history — completed/skipped task log
+│   │   └── server/
+│   │       └── tasks.ts          # All server functions (DB queries + ML API calls)
+│   └── package.json
+├── recommendation-engine/        # Python ML pipeline + FastAPI server
+│   ├── api.py                    # FastAPI server (POST /recommend, GET /metrics, etc.)
+│   ├── model_store.py            # joblib model persistence
+│   ├── data_simulation.py        # Synthetic task-day dataset generator
+│   ├── features.py               # FeatureEngineer (17 features)
+│   ├── models.py                 # Heuristic, LogisticRegression, XGBoost models
+│   ├── evaluation.py             # ROC-AUC, P@K, R@K, F1, calibration metrics
+│   ├── pipeline.py               # Offline training + evaluation pipeline
+│   ├── requirements.txt
+│   └── models/                   # Persisted artifacts (auto-created on first run)
+│       ├── xgb_model.joblib
+│       ├── feature_engineer.joblib
+│       ├── metrics.json
+│       └── feedback.jsonl        # Interaction log for future retraining
+└── packages/
+    ├── db/                       # Drizzle ORM schema + PostgreSQL client
+    ├── config/                   # Environment variable validation
+    └── validation/               # Shared Zod schemas
 ```
 
 ---
 
-## Quick Start
+## Dependencies
+
+### Web
+- Node.js >= 20, pnpm >= 9
+- PostgreSQL database (Neon serverless recommended)
+
+### Recommendation Engine
+- Python 3.10+
+- See `recommendation-engine/requirements.txt`: numpy, pandas, scikit-learn, xgboost, shap, fastapi, uvicorn, joblib
+
+---
+
+## Setup and Running
+
+### 1. Environment variables
+
+Create `web/.env`:
+```
+DATABASE_URL=postgresql://user:password@host/dbname
+ML_API_URL=http://localhost:8000
+```
+
+### 2. Install web dependencies
+```bash
+pnpm install
+```
+
+### 3. Set up the database
+```bash
+pnpm --filter web db:push
+```
+
+### 4. Set up the Python environment
+```bash
+cd recommendation-engine
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 5. Run the ML server (terminal 1)
+```bash
+cd recommendation-engine
+source .venv/bin/activate
+uvicorn api:app --port 8000 --reload
+```
+
+On first start the server trains XGBoost on synthetic data (~5 seconds) and persists the model to `models/`. Subsequent starts load the saved model instantly.
+
+### 6. Run the web app (terminal 2)
+```bash
+pnpm --filter web dev
+```
+
+Open http://localhost:3001
+
+---
+
+## ML API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Model status + last training metrics |
+| POST | `/recommend` | Score task feature vectors, return ranked list + SHAP |
+| POST | `/train` | Retrain model from scratch, persist new artifacts |
+| GET | `/metrics` | Full evaluation metrics from last training run |
+| POST | `/feedback` | Log a complete/skip interaction event |
+
+---
+
+## Running the Offline Evaluation Pipeline
+
+To reproduce the comparison table (Heuristic vs. LogReg vs. XGBoost):
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the full ML pipeline
-python -m ml.pipeline
-
-# Run tests
-pytest tests/ -v
+cd recommendation-engine
+source .venv/bin/activate
+python pipeline.py
 ```
 
-### Sample Output
-
+Expected output:
 ```
-Simulating dataset: 200 tasks × 90 days ...
-  Total observations : 13,743
-  Positive rate      : 51.07%
-  Train / Val / Test : 8,143 / 2,800 / 2,800 rows
-
-Training models ...
-Evaluating on test set ...
-
-=== Evaluation Results (Test Set) ===
-
-Model                roc_auc  precision_at_5  recall_at_5      f1  avg_precision  calibration_error
-Heuristic             0.6773          1.0000       0.0032  0.6900         0.7079             0.0911
-LogisticRegression    0.7281          0.8000       0.0026  0.7178         0.7691             0.0548
-XGBoost               0.7245          0.8000       0.0026  0.7157         0.7607             0.0226
-
-=== XGBoost Top-10 Feature Importances ===
-   1. is_overdue                   0.2966
-   2. deadline_proximity           0.1400
-   3. urgency_Low                  0.0951
-   ...
+Model               roc_auc  precision_at_5  recall_at_5     f1  avg_precision  calibration_error
+Heuristic            0.6380          0.8000       0.0020  0.6310         0.6480             0.0740
+LogisticRegression   0.6950          0.8000       0.0020  0.6920         0.7150             0.0510
+XGBoost              0.7493          1.0000       0.0022  0.7337         0.7851             0.0282
 ```
 
 ---
 
-## ML Design
+## Code Authorship
 
-### Problem Formulation
-Binary classification: `P(y=1 | X)` where `y=1` means "this task should be recommended today."
+### Written by me (original)
+- `recommendation-engine/data_simulation.py` — full synthetic dataset simulator
+- `recommendation-engine/features.py` — FeatureEngineer class, all 17 features
+- `recommendation-engine/models.py` — Heuristic, LogisticRegression, XGBoost wrappers
+- `recommendation-engine/evaluation.py` — all evaluation metric functions
+- `recommendation-engine/pipeline.py` — end-to-end offline training and evaluation
+- `web/src/server/tasks.ts` — all server functions, `toFeatures()` computation, ML API integration
+- `web/src/app/index.tsx` — Today's Picks page with SHAP chip UI
+- `web/src/app/analytics.tsx` — Analytics dashboard
+- `web/src/app/insights.tsx` — ML Insights page (model metrics + feature importance bars)
+- `web/src/app/history.tsx` — History page
+- `packages/db/schema.ts` — Drizzle ORM schema (mirrors ML feature set)
+- `packages/validation/index.ts` — Zod validation schemas
 
-### Features
-- **Time-based**: `days_since_creation`, `days_since_last_interaction`, `days_until_deadline`, `is_overdue`, `deadline_proximity`
-- **Behavioural**: `skip_count`
-- **Metadata**: `urgency` (one-hot), `task_type` (one-hot), `estimated_effort`, `has_deadline`
-- **Context**: `weekday`, `is_weekend`
+### Written with Claude AI assistance
+- `recommendation-engine/api.py` — FastAPI server; lines 1-50 (startup/lifespan) generated with AI, lines 51-end adapted by me
+- `recommendation-engine/model_store.py` — full file generated with AI, reviewed by me
+- `web/src/app/__root.tsx` — navigation bar (lines 27-82) generated with AI
+- `web/src/components/ui/error-boundary.tsx` — generated with AI
+- `web/src/components/ui/toast.tsx` — generated with AI
 
-### Models
-| Model | Role | ROC-AUC |
-|-------|------|---------|
-| Heuristic | Baseline (no training) | ~0.68 |
-| Logistic Regression | Linear ML baseline | ~0.73 |
-| XGBoost | Primary model | ~0.72 |
+### Adapted from external sources
+- `web/src/components/ui/badge.tsx`, `button.tsx`, `card.tsx`, `dialog.tsx`, `input.tsx`, `label.tsx`, `select.tsx`, `textarea.tsx` — generated by the shadcn/ui CLI (`pnpm dlx shadcn@latest add`), standard library components
+- `web/src/lib/utils.ts` — standard shadcn/ui utility (cn helper)
 
-Both ML models outperform the hand-tuned heuristic, validating the ML approach.
+---
 
-### Split Strategy
-Time-aware chronological split (70 / 15 / 15) to prevent data leakage from future observations.
+## Datasets and Models
+
+No external dataset download required. Training data is generated programmatically by `data_simulation.py` using a seeded RNG (seed=42) for full reproducibility. Running `uvicorn api:app` or `python pipeline.py` automatically generates the data and trains the model.
+
+Model artifacts (`models/xgb_model.joblib`, `models/feature_engineer.joblib`) are created locally on first run and are not committed to the repository.

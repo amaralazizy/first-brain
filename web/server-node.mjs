@@ -13,6 +13,13 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const CLIENT_DIR = join(__dirname, 'dist', 'client');
 
+// Discover the hashed CSS filename at startup so we can push preload headers
+const assetsDir = join(CLIENT_DIR, 'assets');
+const cssFile = existsSync(assetsDir)
+  ? (await import('node:fs')).readdirSync(assetsDir).find(f => f.startsWith('globals') && f.endsWith('.css'))
+  : null;
+const CSS_PRELOAD = cssFile ? `</assets/${cssFile}>; rel=preload; as=style` : null;
+
 const MIME = {
   '.js': 'application/javascript',
   '.mjs': 'application/javascript',
@@ -84,6 +91,9 @@ function nodeReqToWebRequest(req) {
 async function writeWebResponse(webRes, res) {
   res.statusCode = webRes.status;
   webRes.headers.forEach((value, key) => res.setHeader(key, value));
+  if (CSS_PRELOAD && (webRes.headers.get('content-type') || '').includes('text/html')) {
+    res.setHeader('Link', CSS_PRELOAD);
+  }
 
   if (!webRes.body) {
     res.end();
