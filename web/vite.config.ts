@@ -9,9 +9,6 @@ export default defineConfig({
   server: {
     port: 3001,
   },
-  build: {
-    cssCodeSplit: false,
-  },
   plugins: [
     tailwindcss(),
     tanstackStart({
