@@ -7,7 +7,7 @@ RUN corepack enable
 
 WORKDIR /app
 
-ARG CACHEBUST=1
+ARG CACHEBUST=2
 # Copy workspace manifests first for layer caching
 COPY .npmrc pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/ packages/
